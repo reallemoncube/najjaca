@@ -18,24 +18,39 @@ app.get("/webhook", (req, res) => {
 });
 
 app.post("/webhook", (req, res) => {
-  const body = req.body;
+  try {
+    const body = req.body;
+    console.log("Full payload: " + JSON.stringify(body));
 
-  if (body.object === "whatsapp_business_account") {
     const entry = body.entry?.[0];
-    const change = entry?.changes?.[0];
-    const message = change?.value?.messages?.[0];
+    const changes = entry?.changes;
 
-    if (message) {
-      const from = message.from;
-      const text = message.text?.body;
-      const phoneNumberId = change.value.metadata.phone_number_id;
+    if (changes) {
+      for (const change of changes) {
+        const value = change.value;
+        const messages = value?.messages;
 
-      console.log("Message from " + from + ": " + text);
+        if (messages && messages.length > 0) {
+          for (const message of messages) {
+            const from = message.from;
+            const text = message.text?.body;
+            const phoneNumberId = value?.metadata?.phone_number_id;
 
-      sendReply(phoneNumberId, from,
-        "Thanks for contacting us! We received your message. A technician will reply shortly."
-      );
+            console.log("From: " + from);
+            console.log("Text: " + text);
+            console.log("Phone Number ID: " + phoneNumberId);
+
+            if (from && text && phoneNumberId) {
+              sendReply(phoneNumberId, from,
+                "Thanks for contacting us! We received your message. A technician will reply shortly."
+              );
+            }
+          }
+        }
+      }
     }
+  } catch (err) {
+    console.log("Error: " + err.message);
   }
 
   res.sendStatus(200);
@@ -43,8 +58,9 @@ app.post("/webhook", (req, res) => {
 
 async function sendReply(phoneNumberId, to, message) {
   const token = process.env.WHATSAPP_TOKEN;
+  console.log("Sending reply to: " + to);
 
-  await fetch(
+  const response = await fetch(
     "https://graph.facebook.com/v19.0/" + phoneNumberId + "/messages",
     {
       method: "POST",
@@ -60,6 +76,9 @@ async function sendReply(phoneNumberId, to, message) {
       })
     }
   );
+
+  const data = await response.json();
+  console.log("Reply result: " + JSON.stringify(data));
 }
 
 const PORT = process.env.PORT || 3000;
